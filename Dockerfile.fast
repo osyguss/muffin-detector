@@ -1,0 +1,51 @@
+# Schneller Dockerfile für CI Tests (ohne ML Dependencies)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Nur minimal Dependencies für API Tests
+RUN pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    Pillow==10.1.0 \
+    python-multipart==0.0.6 \
+    httpx==0.25.2
+
+# Mock Classifier für Tests
+COPY <<EOF src/classifier.py
+"""Mock Classifier für schnelle CI Tests"""
+import logging
+from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+class MuffinChihuahuaClassifier:
+    def __init__(self, model_name="mock-model"):
+        self.model_name = model_name
+        self.device = "cpu"
+        logger.info("Mock classifier initialized for CI tests")
+    
+    def predict(self, image):
+        """Mock prediction - always returns muffin with 0.8 confidence"""
+        return "muffin", 0.8
+    
+    def get_model_info(self):
+        return {
+            "model_name": self.model_name,
+            "device": self.device,
+            "type": "mock"
+        }
+EOF
+
+# App Code kopieren
+COPY src/main.py src/
+COPY src/__init__.py src/
+COPY app.py .
+
+EXPOSE 8000
+
+# Health Check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+
+CMD ["python", "app.py"]

@@ -1,14 +1,21 @@
 # Multi-stage build für optimierte Container-Größe
 FROM python:3.11-slim as builder
 
-# System-Dependencies installieren
+# System-Dependencies installieren (mit Cache)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Python Dependencies installieren
+# Python Dependencies installieren (optimiert für Caching)
 COPY requirements.txt .
+
+# Pip Cache und Parallel Installation
+RUN pip install --no-cache-dir --user \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch torchvision torchaudio --extra-index-url https://pypi.org/simple
+
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production Stage
