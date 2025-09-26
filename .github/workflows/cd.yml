@@ -113,8 +113,11 @@ jobs:
     - name: Deploy to Cloud Run
       id: deploy
       run: |
+        IMAGE_URL="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+        echo "Deploying image: $IMAGE_URL"
+        
         gcloud run deploy ${{ env.SERVICE_NAME }} \
-          --image ${{ needs.build-and-push.outputs.image-url }} \
+          --image $IMAGE_URL \
           --platform managed \
           --region ${{ env.REGION }} \
           --allow-unauthenticated \
