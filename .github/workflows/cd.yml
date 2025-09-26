@@ -107,12 +107,12 @@ jobs:
           --region ${{ env.REGION }} \
           --allow-unauthenticated \
           --port 8000 \
-          --memory 2Gi \
+          --memory 1Gi \
           --cpu 1 \
           --min-instances 0 \
           --max-instances 10 \
-          --timeout 300 \
-          --set-env-vars="ENVIRONMENT=production" \
+          --timeout 60 \
+          --set-env-vars="HF_TOKEN=${{ secrets.HF_TOKEN }},HF_ENDPOINT_URL=https://a6zsrjqafjotuw14.us-east-1.aws.endpoints.huggingface.cloud,ENVIRONMENT=production" \
           --quiet
         
         # Get service URL

@@ -1,10 +1,15 @@
 import io
 import logging
+import os
 import time
 from typing import Any, Dict
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image
+from dotenv import load_dotenv
+
+# Lade Environment Variables aus .env Datei
+load_dotenv()
 
 from classifier import MuffinChihuahuaClassifier
 
