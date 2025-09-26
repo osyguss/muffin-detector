@@ -1,0 +1,36 @@
+[flake8]
+max-line-length = 88
+extend-ignore = 
+    # E203: whitespace before ':' (conflicts with black)
+    E203,
+    # W503: line break before binary operator (conflicts with black)
+    W503,
+    # E501: line too long (handled by black)
+    E501,
+    # W293: blank line contains whitespace
+    W293
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    .tox,
+    .pytest_cache,
+    .mypy_cache
+per-file-ignores =
+    # Ignore import errors in __init__.py files
+    __init__.py:F401
+    src/__init__.py:F401
+    # Ignore complexity in tests
+    tests/*:C901
+    # Ignore complexity in classifier (ML logic can be complex)
+    src/classifier.py:C901
+    classifier.py:C901
+    # Ignore module level imports in entry points
+    app.py:E402
+    demo.py:E402
+max-complexity = 10
+import-order-style = google

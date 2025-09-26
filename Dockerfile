@@ -33,8 +33,8 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
 # App Code kopieren
-COPY main.py .
-COPY classifier.py .
+COPY src/ ./src/
+COPY app.py .
 
 # Non-root User erstellen für Sicherheit
 RUN useradd --create-home --shell /bin/bash app
@@ -48,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
 # App starten
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "app.py"]

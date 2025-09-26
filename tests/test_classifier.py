@@ -1,0 +1,317 @@
+"""
+Tests für den MuffinChihuahuaClassifier
+"""
+
+from unittest.mock import Mock, patch
+
+import pytest
+from PIL import Image
+
+from classifier import MuffinChihuahuaClassifier
+
+
+@pytest.fixture
+def sample_images():
+    """Erstellt verschiedene Test-Bilder"""
+    images = {}
+
+    # Brown/muffin-like image
+    images["brown"] = Image.new("RGB", (224, 224), color=(139, 69, 19))
+
+    # Light/chihuahua-like image
+    images["light"] = Image.new("RGB", (224, 224), color=(222, 184, 135))
+
+    # Random colored image
+    images["random"] = Image.new("RGB", (224, 224), color=(100, 150, 200))
+
+    return images
+
+
+@pytest.fixture
+def mock_pipeline():
+    """Mock für Hugging Face Pipeline"""
+    mock = Mock()
+    mock.return_value = [
+        {"label": "muffin", "score": 0.8},
+        {"label": "chocolate cake", "score": 0.15},
+        {"label": "other", "score": 0.05},
+    ]
+    return mock
+
+
+class TestClassifierInitialization:
+    """Tests für Classifier-Initialisierung"""
+
+    @patch("classifier.pipeline")
+    def test_classifier_init_success(self, mock_pipeline_func):
+        """Test erfolgreiche Classifier-Initialisierung"""
+        mock_pipeline_func.return_value = Mock()
+
+        classifier = MuffinChihuahuaClassifier()
+
+        assert classifier.model_name == "google/vit-base-patch16-224"
+        assert classifier.device in ["cuda", "cpu"]
+        assert hasattr(classifier, "classifier")
+        assert hasattr(classifier, "class_mapping")
+
+    @patch("classifier.pipeline")
+    def test_classifier_init_with_custom_model(self, mock_pipeline_func):
+        """Test Initialisierung mit benutzerdefiniertem Model"""
+        mock_pipeline_func.return_value = Mock()
+        custom_model = "microsoft/resnet-50"
+
+        classifier = MuffinChihuahuaClassifier(model_name=custom_model)
+
+        assert classifier.model_name == custom_model
+
+    @patch("classifier.pipeline")
+    def test_classifier_init_fallback(self, mock_pipeline_func):
+        """Test Fallback bei Model-Lade-Fehler"""
+        # First call fails, second succeeds
+        mock_pipeline_func.side_effect = [Exception("Model not found"), Mock()]
+
+        MuffinChihuahuaClassifier()
+
+        # Should have called pipeline twice (original + fallback)
+        assert mock_pipeline_func.call_count == 2
+
+    @patch("classifier.pipeline")
+    def test_classifier_init_complete_failure(self, mock_pipeline_func):
+        """Test kompletter Initialisierungsfehler"""
+        mock_pipeline_func.side_effect = Exception("No models available")
+
+        with pytest.raises(Exception):
+            MuffinChihuahuaClassifier()
+
+
+class TestClassMapping:
+    """Tests für Klassen-Mapping"""
+
+    @patch("classifier.pipeline")
+    def test_class_mapping_structure(self, mock_pipeline_func):
+        """Test der Klassen-Mapping-Struktur"""
+        mock_pipeline_func.return_value = Mock()
+
+        classifier = MuffinChihuahuaClassifier()
+
+        assert "muffin" in classifier.class_mapping
+        assert "chihuahua" in classifier.class_mapping
+
+        # Check that mappings contain expected terms
+        muffin_terms = classifier.class_mapping["muffin"]
+        chihuahua_terms = classifier.class_mapping["chihuahua"]
+
+        assert "muffin" in muffin_terms
+        assert "chihuahua" in chihuahua_terms
+        assert "dog" in chihuahua_terms
+
+
+class TestPrediction:
+    """Tests für Vorhersage-Funktionalität"""
+
+    @patch("classifier.pipeline")
+    def test_predict_muffin(self, mock_pipeline_func, sample_images):
+        """Test Muffin-Vorhersage"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "muffin", "score": 0.9},
+            {"label": "bread", "score": 0.08},
+            {"label": "other", "score": 0.02},
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["brown"])
+
+        assert prediction == "muffin"
+        assert confidence > 0.5
+        assert isinstance(confidence, float)
+
+    @patch("classifier.pipeline")
+    def test_predict_chihuahua(self, mock_pipeline_func, sample_images):
+        """Test Chihuahua-Vorhersage"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "chihuahua", "score": 0.85},
+            {"label": "small dog", "score": 0.1},
+            {"label": "other", "score": 0.05},
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["light"])
+
+        assert prediction == "chihuahua"
+        assert confidence > 0.5
+
+    @patch("classifier.pipeline")
+    def test_predict_with_heuristics(self, mock_pipeline_func, sample_images):
+        """Test Vorhersage mit Heuristiken"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "animal", "score": 0.7},
+            {"label": "mammal", "score": 0.2},
+            {"label": "other", "score": 0.1},
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["random"])
+
+        # Should use heuristics and classify as chihuahua due to "animal" label
+        assert prediction == "chihuahua"
+        assert confidence > 0
+
+    @patch("classifier.pipeline")
+    def test_predict_fallback_logic(self, mock_pipeline_func, sample_images):
+        """Test Fallback-Logik bei unbekannten Labels"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "unknown_object", "score": 0.8},
+            {"label": "mystery_item", "score": 0.15},
+            {"label": "other", "score": 0.05},
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["random"])
+
+        # Should still return a valid prediction
+        assert prediction in ["muffin", "chihuahua"]
+        assert 0.1 <= confidence <= 1.0
+
+    @patch("classifier.pipeline")
+    def test_predict_error_handling(self, mock_pipeline_func, sample_images):
+        """Test Error-Handling bei Vorhersage-Fehlern"""
+        mock_classifier = Mock()
+        mock_classifier.side_effect = Exception("Model inference error")
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["brown"])
+
+        # Should return fallback prediction
+        assert prediction in ["muffin", "chihuahua"]
+        assert confidence == 0.5
+
+
+class TestConfidenceHandling:
+    """Tests für Konfidenz-Behandlung"""
+
+    @patch("classifier.pipeline")
+    def test_confidence_bounds(self, mock_pipeline_func, sample_images):
+        """Test Konfidenz-Grenzen"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "muffin", "score": 1.5},  # Over 1.0
+            {"label": "other", "score": 0.0},
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["brown"])
+
+        # Confidence should be clamped to [0.1, 1.0]
+        assert 0.1 <= confidence <= 1.0
+
+    @patch("classifier.pipeline")
+    def test_confidence_minimum(self, mock_pipeline_func, sample_images):
+        """Test minimale Konfidenz"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [
+            {"label": "unknown", "score": 0.001},  # Very low score
+        ]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+        prediction, confidence = classifier.predict(sample_images["brown"])
+
+        # Confidence should be at least 0.1
+        assert confidence >= 0.1
+
+
+class TestModelInfo:
+    """Tests für Model-Informationen"""
+
+    @patch("classifier.pipeline")
+    def test_get_model_info(self, mock_pipeline_func):
+        """Test Model-Info-Funktion"""
+        mock_pipeline_func.return_value = Mock()
+
+        classifier = MuffinChihuahuaClassifier()
+        info = classifier.get_model_info()
+
+        assert isinstance(info, dict)
+        assert "model_name" in info
+        assert "device" in info
+        assert "cuda_available" in info
+
+        assert info["model_name"] == classifier.model_name
+        assert info["device"] in ["cuda", "cpu"]
+        assert isinstance(info["cuda_available"], bool)
+
+
+class TestImageFormats:
+    """Tests für verschiedene Bildformate"""
+
+    @patch("classifier.pipeline")
+    def test_different_image_sizes(self, mock_pipeline_func):
+        """Test verschiedener Bildgrößen"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [{"label": "muffin", "score": 0.8}]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+
+        # Test different image sizes
+        sizes = [(100, 100), (224, 224), (512, 512), (1024, 768)]
+
+        for width, height in sizes:
+            img = Image.new("RGB", (width, height), color="brown")
+            prediction, confidence = classifier.predict(img)
+
+            assert prediction in ["muffin", "chihuahua"]
+            assert 0 <= confidence <= 1
+
+    @patch("classifier.pipeline")
+    def test_grayscale_image(self, mock_pipeline_func):
+        """Test Graustufenbild"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [{"label": "chihuahua", "score": 0.7}]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+
+        # Create grayscale image
+        img = Image.new("L", (224, 224), color=128)
+        prediction, confidence = classifier.predict(img)
+
+        assert prediction in ["muffin", "chihuahua"]
+        assert confidence > 0
+
+
+class TestPerformance:
+    """Performance Tests"""
+
+    @patch("classifier.pipeline")
+    def test_prediction_speed(self, mock_pipeline_func, sample_images):
+        """Test Vorhersage-Geschwindigkeit"""
+        mock_classifier = Mock()
+        mock_classifier.return_value = [{"label": "muffin", "score": 0.8}]
+        mock_pipeline_func.return_value = mock_classifier
+
+        classifier = MuffinChihuahuaClassifier()
+
+        import time
+
+        start_time = time.time()
+
+        # Make multiple predictions
+        for _ in range(10):
+            classifier.predict(sample_images["brown"])
+
+        end_time = time.time()
+        avg_time = (end_time - start_time) / 10
+
+        # Should be reasonably fast (less than 1 second per prediction in mock)
+        assert avg_time < 1.0
