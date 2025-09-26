@@ -1,7 +1,8 @@
 """
-Tests für den MuffinChihuahuaClassifier
+Tests für den MuffinChihuahuaClassifier (HF Inference Endpoint Version)
 """
 
+import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -28,60 +29,63 @@ def sample_images():
 
 
 @pytest.fixture
-def mock_pipeline():
-    """Mock für Hugging Face Pipeline"""
-    mock = Mock()
-    mock.return_value = [
+def mock_hf_response():
+    """Mock für Hugging Face Inference API Response"""
+    return [
         {"label": "muffin", "score": 0.8},
         {"label": "chocolate cake", "score": 0.15},
         {"label": "other", "score": 0.05},
     ]
-    return mock
+
+
+@pytest.fixture
+def setup_test_env():
+    """Setup Test Environment Variables"""
+    os.environ["HF_TOKEN"] = "fake_token_for_testing"
+    os.environ["HF_ENDPOINT_URL"] = "https://fake-endpoint-for-testing.com"
+    yield
+    # Cleanup
+    if "HF_TOKEN" in os.environ:
+        del os.environ["HF_TOKEN"]
+    if "HF_ENDPOINT_URL" in os.environ:
+        del os.environ["HF_ENDPOINT_URL"]
 
 
 class TestClassifierInitialization:
-    """Tests für Classifier-Initialisierung"""
+    """Tests für Classifier-Initialisierung (HF Endpoint)"""
 
-    @patch("classifier.pipeline")
-    def test_classifier_init_success(self, mock_pipeline_func):
+    def test_classifier_init_success(self, setup_test_env):
         """Test erfolgreiche Classifier-Initialisierung"""
-        mock_pipeline_func.return_value = Mock()
-
         classifier = MuffinChihuahuaClassifier()
 
-        assert classifier.model_name == "google/vit-base-patch16-224"
-        assert classifier.device in ["cuda", "cpu"]
-        assert hasattr(classifier, "classifier")
+        assert classifier.endpoint_url == "https://fake-endpoint-for-testing.com"
+        assert classifier.hf_token == "fake_token_for_testing"
         assert hasattr(classifier, "class_mapping")
+        assert classifier._is_testing_mode() is True
 
-    @patch("classifier.pipeline")
-    def test_classifier_init_with_custom_model(self, mock_pipeline_func):
-        """Test Initialisierung mit benutzerdefiniertem Model"""
-        mock_pipeline_func.return_value = Mock()
-        custom_model = "microsoft/resnet-50"
+    def test_classifier_init_with_custom_endpoint(self, setup_test_env):
+        """Test Initialisierung mit benutzerdefiniertem Endpoint"""
+        custom_endpoint = "https://custom-endpoint.com"
+        
+        classifier = MuffinChihuahuaClassifier(endpoint_url=custom_endpoint)
 
-        classifier = MuffinChihuahuaClassifier(model_name=custom_model)
+        assert classifier.endpoint_url == custom_endpoint
 
-        assert classifier.model_name == custom_model
-
-    @patch("classifier.pipeline")
-    def test_classifier_init_fallback(self, mock_pipeline_func):
-        """Test Fallback bei Model-Lade-Fehler"""
-        # First call fails, second succeeds
-        mock_pipeline_func.side_effect = [Exception("Model not found"), Mock()]
-
-        MuffinChihuahuaClassifier()
-
-        # Should have called pipeline twice (original + fallback)
-        assert mock_pipeline_func.call_count == 2
-
-    @patch("classifier.pipeline")
-    def test_classifier_init_complete_failure(self, mock_pipeline_func):
-        """Test kompletter Initialisierungsfehler"""
-        mock_pipeline_func.side_effect = Exception("No models available")
-
-        with pytest.raises(Exception):
+    def test_classifier_init_missing_token(self):
+        """Test Fehler bei fehlendem HF Token"""
+        # Ensure no HF_TOKEN in environment
+        if "HF_TOKEN" in os.environ:
+            del os.environ["HF_TOKEN"]
+            
+        with pytest.raises(ValueError, match="HF_TOKEN environment variable is required"):
             MuffinChihuahuaClassifier()
+
+    def test_testing_mode_detection(self, setup_test_env):
+        """Test Testing Mode Detection"""
+        classifier = MuffinChihuahuaClassifier()
+        
+        # Should detect testing mode from fake token
+        assert classifier._is_testing_mode() is True
 
 
 class TestClassMapping:
