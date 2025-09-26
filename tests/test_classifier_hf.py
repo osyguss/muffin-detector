@@ -4,7 +4,6 @@ Vereinfachte Tests für das neue HF Endpoint Setup
 """
 
 import os
-from unittest.mock import Mock, patch
 
 import pytest
 from PIL import Image
@@ -48,14 +47,16 @@ class TestClassifierInitialization:
         # Ensure no HF_TOKEN in environment
         if "HF_TOKEN" in os.environ:
             del os.environ["HF_TOKEN"]
-            
-        with pytest.raises(ValueError, match="HF_TOKEN environment variable is required"):
+
+        with pytest.raises(
+            ValueError, match="HF_TOKEN environment variable is required"
+        ):
             MuffinChihuahuaClassifier()
 
     def test_testing_mode_detection(self, setup_test_env):
         """Test Testing Mode Detection"""
         classifier = MuffinChihuahuaClassifier()
-        
+
         # Should detect testing mode from fake token
         assert classifier._is_testing_mode() is True
 
@@ -95,7 +96,7 @@ class TestPrediction:
     def test_predict_error_handling(self, setup_test_env, sample_image):
         """Test Error-Handling bei Vorhersage-Fehlern"""
         classifier = MuffinChihuahuaClassifier()
-        
+
         # Even in testing mode, should handle errors gracefully
         prediction, confidence = classifier.predict(sample_image)
 
