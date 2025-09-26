@@ -1,4 +1,4 @@
-name: CI Pipeline (Testing Only)
+name: CI Pipeline
 
 on:
   push:
@@ -84,6 +84,9 @@ jobs:
         pip install pytest pytest-asyncio pytest-cov httpx coverage
     
     - name: Run unit tests
+      env:
+        HF_TOKEN: fake_token_for_testing
+        HF_ENDPOINT_URL: https://fake-endpoint-for-testing.com
       run: |
         python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
     
@@ -143,8 +146,11 @@ jobs:
         pip install -r requirements.txt
     
     - name: Start service for integration tests
+      env:
+        HF_TOKEN: fake_token_for_testing
+        HF_ENDPOINT_URL: https://fake-endpoint-for-testing.com
       run: |
-        echo "Starting service in background..."
+        echo "Starting service in background with mock HF credentials..."
         python app.py &
         SERVICE_PID=$!
         echo "SERVICE_PID=$SERVICE_PID" >> $GITHUB_ENV
