@@ -89,16 +89,28 @@ test-service: ## Test the running service
 demo: ## Run demo script
 	python demo.py
 
+# Cloud Deployment
+gcp-setup: ## Setup Google Cloud Platform
+	./scripts/setup-gcp.sh
+
+deploy-quick: ## Quick deploy to Cloud Run (local)
+	./scripts/quick-deploy.sh
+
+deploy-status: ## Check Cloud Run service status
+	gcloud run services describe muffin-detector --region=europe-west1 --format="table(metadata.name,status.url,status.conditions[0].type)"
+
+deploy-logs: ## View Cloud Run service logs
+	gcloud logs read --service=muffin-detector --region=europe-west1 --limit=50
+
 # Cleanup
-clean: ## Clean up generated files
-	rm -rf __pycache__/
-	rm -rf .pytest_cache/
-	rm -rf .mypy_cache/
-	rm -rf htmlcov/
+clean: ## Clean up temporary files
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -delete
+	rm -rf .pytest_cache
+	rm -rf htmlcov
 	rm -rf .coverage
-	rm -rf coverage.xml
-	rm -rf dist/
-	rm -rf build/
+	rm -rf dist
+	rm -rf build
 	rm -rf *.egg-info/
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
