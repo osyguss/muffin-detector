@@ -3,10 +3,14 @@ import logging
 import time
 from typing import Any, Dict
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image
 
 from classifier import MuffinChihuahuaClassifier
+
+# Lade Environment Variables aus .env Datei
+load_dotenv()
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)

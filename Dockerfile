@@ -1,63 +1,35 @@
-# Multi-stage build für optimierte Container-Größe
-FROM python:3.11-slim as builder
-
-# System-Dependencies installieren (mit Cache)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Python Dependencies installieren (optimiert für Caching)
-COPY requirements.txt .
-
-# Pip upgrade und optimierte Installation
-RUN pip install --upgrade pip
-
-# PyTorch CPU-only Installation (deutlich kleiner und schneller)
-RUN pip install --no-cache-dir --user \
-    --index-url https://download.pytorch.org/whl/cpu \
-    --timeout 1000 \
-    torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu
-
-# Andere Dependencies installieren
-RUN pip install --no-cache-dir --user --timeout 1000 -r requirements.txt
-
-# Production Stage
+# Lightweight Python API Container (nur für HF Inference Endpoint)
 FROM python:3.11-slim
 
 # Arbeitsverzeichnis erstellen
 WORKDIR /app
 
-# System-Dependencies für Runtime
+# System-Dependencies (minimal)
 RUN apt-get update && apt-get install -y \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Python Dependencies von Builder kopieren
-COPY --from=builder /root/.local /root/.local
-
-# PATH für lokale Python Packages
-ENV PATH=/root/.local/bin:$PATH
+# Python Dependencies installieren
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # App Code kopieren
 COPY src/ ./src/
 COPY app.py .
 
 # Non-root User erstellen für Sicherheit
-RUN useradd --create-home --shell /bin/bash app
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
 USER app
 
 # Port exposieren
 EXPOSE 8000
 
-# Health Check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+# Health Check (einfacher)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # App starten
 CMD ["python", "app.py"]
