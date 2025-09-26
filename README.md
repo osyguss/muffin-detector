@@ -137,3 +137,4 @@ Das Projekt nutzt ein vortrainiertes Hugging Face Model für die Bildklassifizie
 - **Hugging Face Transformers**: State-of-the-art ML Models
 - **Docker**: Containerisierte Deployment
 - **GitHub Actions**: Automatisierte CI/CD
+# Service Account Berechtigungen hinzugefügt
