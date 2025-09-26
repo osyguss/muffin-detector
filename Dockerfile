@@ -11,12 +11,17 @@ RUN apt-get update && apt-get install -y \
 # Python Dependencies installieren (optimiert für Caching)
 COPY requirements.txt .
 
-# Pip Cache und Parallel Installation
+# Pip upgrade und optimierte Installation
+RUN pip install --upgrade pip
+
+# PyTorch CPU-only Installation (deutlich kleiner und schneller)
 RUN pip install --no-cache-dir --user \
     --index-url https://download.pytorch.org/whl/cpu \
-    torch torchvision torchaudio --extra-index-url https://pypi.org/simple
+    --timeout 1000 \
+    torch==2.1.0+cpu torchvision==0.16.0+cpu torchaudio==2.1.0+cpu
 
-RUN pip install --no-cache-dir --user -r requirements.txt
+# Andere Dependencies installieren
+RUN pip install --no-cache-dir --user --timeout 1000 -r requirements.txt
 
 # Production Stage
 FROM python:3.11-slim

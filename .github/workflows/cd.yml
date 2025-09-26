@@ -1,4 +1,4 @@
-name: CD Pipeline
+name: CD Pipeline - Deploy to Cloud Run
 
 on:
   push:
@@ -18,7 +18,8 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: muffin-detector
   REGION: europe-west1
-  REGISTRY: gcr.io
+  REGISTRY: europe-west1-docker.pkg.dev
+  REPOSITORY: muffin-detector-repo
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -46,17 +47,21 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-    
     - name: Setup Google Cloud CLI
       uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
     
-    - name: Configure Docker for GCR
-      run: gcloud auth configure-docker
+    - name: Create Artifact Registry repository (if not exists)
+      run: |
+        gcloud artifacts repositories create ${{ env.REPOSITORY }} \
+          --repository-format=docker \
+          --location=${{ env.REGION }} \
+          --description="Docker repository for Muffin Detector" || true
+    
+    - name: Configure Docker for Artifact Registry
+      run: gcloud auth configure-docker europe-west1-docker.pkg.dev
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -67,8 +72,8 @@ jobs:
         context: .
         push: true
         tags: |
-          ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-          ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
         platforms: linux/amd64
@@ -76,7 +81,7 @@ jobs:
     - name: Set image URL output
       id: image
       run: |
-        echo "image-url=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+        echo "image-url=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
   # Deploy zu Cloud Run
   deploy:
@@ -87,14 +92,11 @@ jobs:
       service-url: ${{ steps.deploy.outputs.service-url }}
     
     steps:
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-    
     - name: Setup Google Cloud CLI
       uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
     
     - name: Deploy to Cloud Run
       id: deploy
